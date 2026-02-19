@@ -216,7 +216,7 @@ export default function App() {
   }, [setNodes]);
 
   return (
-    <div style={{ width: '100vw', height: '100vh' }}>
+    <div style={{ width: '100vw', height: '100vh' }} className="bg-zinc-950">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -229,34 +229,35 @@ export default function App() {
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
+        colorMode="dark"
         fitView
       >
         <Controls />
-        <MiniMap />
-        <Background variant="dots" gap={12} size={1} />
-        <Panel position="top-left" className="bg-white p-2 border rounded shadow flex flex-col gap-2">
-          <h3 className="font-bold text-sm border-b pb-1">Nodes</h3>
+        <MiniMap zoomable pannable />
+        <Background variant="dots" gap={12} size={1} color="#333" />
+        <Panel position="top-left" className="bg-zinc-900 text-zinc-100 p-2 border border-zinc-700 rounded shadow-xl flex flex-col gap-2">
+          <h3 className="font-bold text-sm border-b border-zinc-700 pb-1">Nodes</h3>
           <div className="flex gap-2">
-            <button onClick={() => addNode('dataNode')} className="bg-green-500 text-white px-2 py-1 rounded text-xs">Data</button>
-            <button onClick={() => addNode('promptNode')} className="bg-yellow-500 text-white px-2 py-1 rounded text-xs">Prompt</button>
-            <button onClick={() => addNode('agentNode')} className="bg-purple-500 text-white px-2 py-1 rounded text-xs">Agent</button>
+            <button onClick={() => addNode('dataNode')} className="bg-green-600 hover:bg-green-500 text-white px-2 py-1 rounded text-xs transition-colors shadow-lg shadow-green-900/20">Data</button>
+            <button onClick={() => addNode('promptNode')} className="bg-yellow-600 hover:bg-yellow-500 text-white px-2 py-1 rounded text-xs transition-colors shadow-lg shadow-yellow-900/20">Prompt</button>
+            <button onClick={() => addNode('agentNode')} className="bg-purple-600 hover:bg-purple-500 text-white px-2 py-1 rounded text-xs transition-colors shadow-lg shadow-purple-900/20">Agent</button>
           </div>
           <button
             onClick={runGraph}
-            className="mt-2 bg-red-600 text-white px-2 py-2 rounded font-bold text-sm hover:bg-red-700 transition-colors"
+            className="mt-2 bg-red-600 text-white px-2 py-2 rounded font-bold text-sm hover:bg-red-500 transition-colors shadow-lg shadow-red-900/20"
           >
             Run Graph
           </button>
         </Panel>
         {executionResult && (
-          <Panel position="bottom-center" className="bg-white p-4 border rounded shadow-lg max-w-md w-full mb-4">
-            <div className="flex justify-between items-center border-b pb-2 mb-2">
+          <Panel position="bottom-center" className="bg-zinc-900 text-zinc-100 p-4 border border-zinc-700 rounded shadow-2xl max-w-md w-full mb-4">
+            <div className="flex justify-between items-center border-b border-zinc-700 pb-2 mb-2">
               <h3 className="font-bold">Execution Result</h3>
-              <button onClick={() => setExecutionResult(null)} className="text-gray-500 hover:text-black">
+              <button onClick={() => setExecutionResult(null)} className="text-zinc-500 hover:text-zinc-100 transition-colors">
                 <X size={16} />
               </button>
             </div>
-            <pre className="text-xs bg-gray-50 p-2 rounded whitespace-pre-wrap max-h-40 overflow-auto">
+            <pre className="text-xs bg-zinc-950 p-2 border border-zinc-800 rounded whitespace-pre-wrap max-h-40 overflow-auto text-green-400">
               {executionResult}
             </pre>
           </Panel>
