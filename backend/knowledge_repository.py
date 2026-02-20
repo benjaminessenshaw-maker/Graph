@@ -482,3 +482,87 @@ class KnowledgeRepository:
                 "collections": r["collections"],
             }
         return {"entities": 0, "notes": 0, "sources": 0, "tags": 0, "collections": 0}
+
+    # ══════════════════════════════════════════════════════
+    #  FULL GRAPH EXPORT (for visual overlay)
+    # ══════════════════════════════════════════════════════
+
+    def get_full_graph(self) -> dict:
+        """Return all nodes and edges for the visual graph overlay."""
+        import math
+
+        # ── Fetch all nodes with visual properties ────────
+        node_query = (
+            "MATCH (n) "
+            "WHERE n:Entity OR n:Note OR n:Source OR n:Tag OR n:Collection "
+            "RETURN n.id AS id, "
+            "       COALESCE(n.name, n.title) AS name, "
+            "       n.summary AS summary, "
+            "       labels(n)[0] AS label, "
+            "       n.entity_type AS entity_type, "
+            "       n.note_type AS note_type, "
+            "       n.source_type AS source_type, "
+            "       n.importance AS importance, "
+            "       n.status AS status, "
+            "       n.created_at AS created_at, "
+            "       n.updated_at AS updated_at, "
+            "       n.completed_at AS completed_at, "
+            "       n.due_date AS due_date, "
+            "       n.color AS color, "
+            "       EXISTS { (n)-[:BLOCKS]->() } AS is_blocking, "
+            "       EXISTS { ()-[:BLOCKS]->(n) } AS is_blocked "
+            "ORDER BY label, name"
+        )
+        node_records, _, _ = self.driver.execute_query(node_query)
+
+        # ── Fetch all relationships ───────────────────────
+        edge_query = (
+            "MATCH (a)-[r]->(b) "
+            "WHERE (a:Entity OR a:Note OR a:Source OR a:Tag OR a:Collection) "
+            "  AND (b:Entity OR b:Note OR b:Source OR b:Tag OR b:Collection) "
+            "RETURN a.id AS source, "
+            "       b.id AS target, "
+            "       type(r) AS rel_type, "
+            "       r.weight AS weight, "
+            "       r.context AS context"
+        )
+        edge_records, _, _ = self.driver.execute_query(edge_query)
+
+        # ── Build node list with grid positions ───────────
+        cols = max(int(math.sqrt(len(node_records))), 1)
+        nodes = []
+        for i, r in enumerate(node_records):
+            nodes.append({
+                "id": r["id"],
+                "name": r["name"] or "Untitled",
+                "summary": r["summary"],
+                "label": r["label"],
+                "entity_type": r["entity_type"],
+                "note_type": r["note_type"],
+                "source_type": r["source_type"],
+                "importance": r["importance"] or 3,
+                "status": r["status"],
+                "created_at": _str_or_none(r["created_at"]),
+                "updated_at": _str_or_none(r["updated_at"]),
+                "completed_at": _str_or_none(r["completed_at"]),
+                "due_date": _str_or_none(r["due_date"]),
+                "color": r["color"],
+                "is_blocking": r["is_blocking"],
+                "is_blocked": r["is_blocked"],
+                "position_x": (i % cols) * 280,
+                "position_y": (i // cols) * 200,
+            })
+
+        # ── Build edge list ───────────────────────────────
+        edges = []
+        for r in edge_records:
+            edges.append({
+                "id": f"e-{r['source']}-{r['target']}-{r['rel_type']}",
+                "source": r["source"],
+                "target": r["target"],
+                "rel_type": r["rel_type"],
+                "weight": r["weight"],
+                "context": r["context"],
+            })
+
+        return {"nodes": nodes, "edges": edges}

@@ -1,42 +1,148 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+/* ── Knowledge Graph Overlay ──────────────────────────────── */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --bg-primary: #09090b;
+  --bg-surface: rgba(24, 24, 27, 0.85);
+  --border: rgba(63, 63, 70, 0.5);
+  --text-primary: #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --text-muted: #52525b;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+/* ── App root ──────────────────────────────────────────────── */
+
+.app-root {
+  width: 100vw;
+  height: 100vh;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(56, 189, 248, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(129, 140, 248, 0.03) 0%, transparent 50%),
+    var(--bg-primary);
 }
 
-.card {
-  padding: 2em;
+/* ── Panel cards ───────────────────────────────────────────── */
+
+.panel-card {
+  background: var(--bg-surface);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.03) inset;
 }
 
-.read-the-docs {
-  color: #888;
+/* ── Detail sidebar ────────────────────────────────────────── */
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 320px;
+  height: 100vh;
+  background: rgba(9, 9, 11, 0.95);
+  backdrop-filter: blur(16px);
+  border-left: 1px solid var(--border);
+  padding: 24px;
+  overflow-y: auto;
+  z-index: 100;
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.4);
+  animation: slideIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* ── Custom clip-paths for node shapes ─────────────────────── */
+
+.clip-hexagon {
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+  padding: 8px 16px;
+}
+
+.clip-diamond {
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+  padding: 16px;
+}
+
+/* ── Slow pulse for status rings ───────────────────────────── */
+
+@keyframes pulse-slow {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 3s ease-in-out infinite;
+}
+
+/* ── ReactFlow overrides ───────────────────────────────────── */
+
+.react-flow__node {
+  transition: transform 0.15s ease;
+}
+
+.react-flow__node:hover {
+  z-index: 10 !important;
+}
+
+.react-flow__edge-path {
+  transition: stroke-opacity 0.2s, stroke-width 0.2s;
+}
+
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke-opacity: 1 !important;
+  stroke-width: 3px !important;
+}
+
+/* Show edge labels on edge hover */
+.react-flow__edge:hover + .react-flow__edgelabel-renderer div,
+.react-flow__edge:hover ~ div {
+  opacity: 1 !important;
+}
+
+.react-flow__minimap {
+  border-radius: 10px !important;
+  overflow: hidden;
+}
+
+.react-flow__controls {
+  border-radius: 10px !important;
+  overflow: hidden;
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(63, 63, 70, 0.5);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(63, 63, 70, 0.8);
 }

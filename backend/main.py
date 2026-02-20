@@ -348,6 +348,13 @@ def explore_neighborhood(
     )
 
 
+# ── Graph Export (visual overlay) ─────────────────────────────
+
+@app.get("/api/knowledge/graph")
+def knowledge_graph(repo: KnowledgeRepository = Depends(get_knowledge_repo)):
+    return repo.get_full_graph()
+
+
 # ── Stats ─────────────────────────────────────────────────────
 
 @app.get("/api/knowledge/stats")
