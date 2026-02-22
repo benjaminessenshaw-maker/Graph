@@ -13,6 +13,21 @@
                 "NEO4J_PASSWORD": "Peek655321",
                 "NEO4J_DATABASE": "neo4j"
             }
+        },
+        "code-graph-rag": {
+            "command": "uv",
+            "args": [
+                "run",
+                "--directory",
+                "c:\\Users\\benja\\.gemini\\antigravity\\scratch\\code-graph-rag",
+                "codebase_rag",
+                "mcp-server"
+            ],
+            "env": {
+                "TARGET_REPO_PATH": "c:\\Users\\benja\\Documents\\GitHub\\Graph",
+                "MEMGRAPH_HOST": "localhost",
+                "MEMGRAPH_PORT": "7687"
+            }
         }
     }
 }

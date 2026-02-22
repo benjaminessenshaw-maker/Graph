@@ -5,34 +5,14 @@ import {
     type EdgeProps,
 } from '@xyflow/react';
 
-// ── Relationship colour map ──────────────────────────────────
-
-const REL_COLORS: Record<string, string> = {
-    RELATES_TO: '#64748b',   // slate
-    DEPENDS_ON: '#f97316',   // orange
-    PART_OF: '#8b5cf6',      // violet
-    BLOCKS: '#ef4444',       // red
-    TAGGED: '#a1a1aa',       // zinc
-    CONTAINS: '#6366f1',     // indigo
-    REFERENCES: '#06b6d4',   // cyan
-    HAS_SOURCE: '#f59e0b',   // amber
-    DERIVED_FROM: '#10b981', // emerald
-    READS_FROM: '#3b82f6',   // blue
-    WRITES_TO: '#22c55e',    // green
-    TRIGGERS: '#ec4899',     // pink
-    CALLS: '#14b8a6',        // teal
-};
-
-function getEdgeColor(relType: string): string {
-    return REL_COLORS[relType] || '#64748b';
-}
-
 // ── Component ────────────────────────────────────────────────
 
 interface KnowledgeEdgeData {
     rel_type: string;
     weight?: number;
     context?: string;
+    parallelIndex?: number;
+    isReverse?: boolean;
 }
 
 function KnowledgeEdgeInner({
@@ -42,34 +22,102 @@ function KnowledgeEdgeInner({
     sourcePosition, targetPosition,
     markerEnd,
     data,
+    style,
 }: EdgeProps) {
     const edgeData = data as unknown as KnowledgeEdgeData;
     const relType = edgeData?.rel_type || 'RELATES_TO';
-    const color = getEdgeColor(relType);
+    // Use the color passed down from App.tsx mapping to ensure visual sync everywhere
+    const color = style?.stroke?.toString() || '#64748b';
     const weight = edgeData?.weight || 0.5;
+    const parallelIndex = edgeData?.parallelIndex || 0;
+    const isReverse = edgeData?.isReverse || false;
 
-    const [edgePath, labelX, labelY] = getBezierPath({
+    let [edgePath, labelX, labelY] = getBezierPath({
         sourceX, sourceY,
         targetX, targetY,
         sourcePosition, targetPosition,
     });
+
+    const dx = targetX - sourceX;
+    const dy = targetY - sourceY;
+    const length = Math.sqrt(dx * dx + dy * dy) || 1;
+
+    // Calculate repeating arrows along the path
+    const arrowSpacing = 60;
+    const numArrows = Math.floor(length / arrowSpacing);
+    const step = numArrows > 0 ? 100 / (numArrows + 1) : 0;
+
+    if (parallelIndex > 0) {
+        // Curve the edge so parallel edges are distinct
+        // Normal vector (normalized)
+        const nx = -dy / length;
+        const ny = dx / length;
+
+        // How far to offset? 1st parallel -> +30px, 2nd -> -30px, 3rd -> +60px, etc.
+        const offsetMagnitude = Math.ceil(parallelIndex / 2) * 35;
+        const sign = (parallelIndex % 2 === 0) ? -1 : 1;
+
+        // Flip sign if isReverse so same-direction pairs consistently alternate 
+        // and opposite-direction pairs bow away from each other
+        const finalSign = isReverse ? -sign : sign;
+        const offset = offsetMagnitude * finalSign;
+
+        // Calculate control point midway along the edge, pushed out by the normal vector
+        const midX = sourceX + dx / 2 + nx * offset;
+        const midY = sourceY + dy / 2 + ny * offset;
+
+        // Quadratic bezier
+        edgePath = `M ${sourceX} ${sourceY} Q ${midX} ${midY} ${targetX} ${targetY}`;
+        // Peak of the curve roughly at halfway 
+        labelX = sourceX + dx / 2 + nx * (offset * 0.5);
+        labelY = sourceY + dy / 2 + ny * (offset * 0.5);
+    }
 
     // Agent relationships get dashed strokes
     const isAgentEdge = ['READS_FROM', 'WRITES_TO', 'TRIGGERS', 'CALLS'].includes(relType);
 
     return (
         <>
+            {/* Invisible thicker path for easier interaction/hovering */}
+            <path
+                id={`${id}-interaction`}
+                d={edgePath}
+                stroke="transparent"
+                strokeWidth={15}
+                fill="none"
+                className="react-flow__edge-interaction"
+            />
+
+            {/* Visible edge path */}
             <path
                 id={id}
                 d={edgePath}
                 stroke={color}
-                strokeWidth={0.8 + weight * 1.5}
-                strokeOpacity={0.5}
+                strokeWidth={1.5 + weight * 2} // Increased base thickness
+                strokeOpacity={0.6}
                 strokeDasharray={isAgentEdge ? '6 3' : undefined}
                 fill="none"
-                className="react-flow__edge-path transition-all duration-200 hover:!stroke-opacity-100"
+                className="react-flow__edge-path transition-all duration-200 group-hover:!stroke-opacity-100 group-hover:!stroke-white"
                 markerEnd={markerEnd}
             />
+
+            {numArrows > 0 && Array.from({ length: numArrows }).map((_, i) => (
+                <text
+                    key={`${id}-arrow-${i}`}
+                    fill={color}
+                    fontSize="11px"
+                    dominantBaseline="central"
+                    className="pointer-events-none select-none opacity-60 transition-opacity"
+                >
+                    <textPath
+                        href={`#${id}`}
+                        startOffset={`${step * (i + 1)}%`}
+                        textAnchor="middle"
+                    >
+                        ➤
+                    </textPath>
+                </text>
+            ))}
 
             <EdgeLabelRenderer>
                 <div

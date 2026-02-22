@@ -37,8 +37,8 @@ for e in entities:
 # -- Notes --
 
 notes = [
-    {"title": "Schema design decisions", "content": "Use entity_type as unconstrained string for maximum flexibility", "note_type": "decision"},
-    {"title": "Visual encoding brainstorm", "content": "Shape=label, colour=subtype, rings=status flags, size=importance", "note_type": "idea"},
+    {"title": "Schema design decisions", "summary": "Flexible entity types", "content": "Use entity_type as unconstrained string for maximum flexibility", "note_type": "decision"},
+    {"title": "Visual encoding brainstorm", "summary": "Visual variables mapping", "content": "Shape=label, colour=subtype, rings=status flags, size=importance", "note_type": "idea"},
 ]
 
 note_ids = {}
@@ -53,8 +53,8 @@ for n in notes:
 # -- Sources --
 
 sources = [
-    {"url": "https://reactflow.dev", "title": "ReactFlow documentation", "source_type": "documentation"},
-    {"url": "https://neo4j.com/docs", "title": "Neo4j documentation", "source_type": "documentation"},
+    {"uri": "https://reactflow.dev", "name": "ReactFlow documentation", "source_type": "documentation"},
+    {"uri": "https://neo4j.com/docs", "name": "Neo4j documentation", "source_type": "documentation"},
 ]
 
 source_ids = {}
@@ -101,8 +101,8 @@ rels = [
 
 for source_id, target_id, rel_type in rels:
     r = requests.post(f"{API}/relationships", json={
-        "source_id": source_id,
-        "target_id": target_id,
+        "from_id": source_id,
+        "to_id": target_id,
         "rel_type": rel_type,
     })
     safe_print(f"  Rel: {rel_type} -> {r.status_code}")
@@ -120,10 +120,10 @@ tag_rels = [
 
 for eid, tid in tag_rels:
     r = requests.post(f"{API}/relationships", json={
-        "source_id": eid,
-        "target_id": tid,
+        "from_id": eid,
+        "to_id": tid,
         "rel_type": "TAGGED",
     })
     safe_print(f"  Tagged -> {r.status_code}")
 
-safe_print(f"\nSeed complete! {len(entity_ids)} entities, {len(note_ids)} notes, {len(source_ids)} sources, {len(tag_ids)} tags, {len(rels)+len(tag_rels)} relationships")
+safe_print(f"\nSeed complete! {len(entity_ids)} entities, {len(note_ids)} notes, {len(source_ids)} tags, {len(tag_ids)} tags, {len(rels)+len(tag_rels)} relationships")

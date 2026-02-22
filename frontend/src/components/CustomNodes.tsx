@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { Handle, Position } from '@xyflow/react';
 import { Database, Bot, FileText } from 'lucide-react';
 

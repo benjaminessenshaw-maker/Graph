@@ -66,27 +66,58 @@ body {
 }
 
 @keyframes slideIn {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
 
-/* ── Custom clip-paths for node shapes ─────────────────────── */
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
 
 .clip-hexagon {
   clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
-  padding: 8px 16px;
 }
 
 .clip-diamond {
   clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
-  padding: 16px;
+}
+
+/* ── Glassmorphism and Node Effects ────────────────────────── */
+
+.glass-morphism {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.node-glow {
+  box-shadow: 0 0 20px rgba(19, 91, 236, 0.3), inset 0 0 12px rgba(19, 91, 236, 0.1);
+}
+
+.ring-pulse {
+  box-shadow: 0 0 0 2px rgba(19, 91, 236, 0.4);
+}
+
+.bg-mesh {
+  background-image: radial-gradient(circle at 50% 50%, rgba(19, 91, 236, 0.08) 0%, transparent 70%);
 }
 
 /* ── Slow pulse for status rings ───────────────────────────── */
 
 @keyframes pulse-slow {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.7; }
+
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
 }
 
 .animate-pulse-slow {
@@ -113,8 +144,8 @@ body {
 }
 
 /* Show edge labels on edge hover */
-.react-flow__edge:hover + .react-flow__edgelabel-renderer div,
-.react-flow__edge:hover ~ div {
+.react-flow__edge:hover+.react-flow__edgelabel-renderer div,
+.react-flow__edge:hover~div {
   opacity: 1 !important;
 }
 

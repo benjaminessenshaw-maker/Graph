@@ -1,0 +1,5 @@
+# SQLite database
+database.db
+
+# Output HTML temp files
+stitch_node1.html

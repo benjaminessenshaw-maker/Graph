@@ -9,12 +9,14 @@ from typing import List, Optional
 from neo4j import Driver
 
 from knowledge_models import (
+    NodeGenericCreate, NodeGenericUpdate,
     EntityCreate, EntitySummary, EntityFull,
     NoteCreate, NoteSummary, NoteFull,
     SourceCreate, SourceOut,
     TagCreate, TagOut,
     CollectionCreate, CollectionOut,
     RelationshipCreate, RelationshipOut,
+    NodePartialUpdate,
 )
 
 
@@ -36,7 +38,7 @@ class KnowledgeRepository:
     ALLOWED_REL_TYPES = {
         "RELATES_TO", "IS_PART_OF", "DEPENDS_ON", "CONTRADICTS",
         "SUPERSEDES", "SIMILAR_TO", "DERIVED_FROM", "ABOUT",
-        "AUTHORED_BY", "TAGGED", "CONTAINS",
+        "AUTHORED_BY", "TAGGED", "CONTAINS", "BLOCKS"
     }
 
     def __init__(self, driver: Driver):
@@ -63,7 +65,9 @@ class KnowledgeRepository:
             f"MATCH (e:Entity) {where} "
             "RETURN e.id AS id, e.name AS name, e.entity_type AS entity_type, "
             "       e.summary AS summary, e.status AS status, "
-            "       e.importance AS importance, e.updated_at AS updated_at "
+            "       e.importance AS importance, e.updated_at AS updated_at, "
+            "       e.due_date AS due_date, e.start_date AS start_date, "
+            "       e.completed_at AS completed_at, e.recurrence AS recurrence "
             "ORDER BY e.updated_at DESC LIMIT $limit"
         )
         records, _, _ = self.driver.execute_query(query, **params)
@@ -72,6 +76,8 @@ class KnowledgeRepository:
                 id=r["id"], name=r["name"], entity_type=r["entity_type"],
                 summary=r["summary"], status=r["status"],
                 importance=r["importance"], updated_at=_str_or_none(r["updated_at"]),
+                due_date=_str_or_none(r["due_date"]), start_date=_str_or_none(r["start_date"]),
+                completed_at=_str_or_none(r["completed_at"]), recurrence=r["recurrence"],
             )
             for r in records
         ]
@@ -104,6 +110,10 @@ class KnowledgeRepository:
             content=e.get("content"),
             created_at=_str_or_none(e.get("created_at")),
             updated_at=_str_or_none(e.get("updated_at")),
+            due_date=_str_or_none(e.get("due_date")),
+            start_date=_str_or_none(e.get("start_date")),
+            completed_at=_str_or_none(e.get("completed_at")),
+            recurrence=e.get("recurrence"),
             connections=conns,
         )
 
@@ -116,10 +126,20 @@ class KnowledgeRepository:
             "    e.content = $content, "
             "    e.status = $status, "
             "    e.importance = $importance, "
-            "    e.updated_at = datetime() "
+            "    e.updated_at = datetime(), "
+            "    e.due_date = $due_date, "
+            "    e.start_date = $start_date, "
+            "    e.completed_at = $completed_at, "
+            "    e.recurrence = $recurrence, "
+            "    e.x = $x, "
+            "    e.y = $y, "
+            "    e.is_exposed = CASE WHEN $is_exposed IS NOT NULL THEN $is_exposed ELSE false END "
             "RETURN e.id AS id, e.name AS name, e.entity_type AS entity_type, "
             "       e.summary AS summary, e.status AS status, "
-            "       e.importance AS importance, e.updated_at AS updated_at"
+            "       e.importance AS importance, e.updated_at AS updated_at, "
+            "       e.due_date AS due_date, e.start_date AS start_date, "
+            "       e.completed_at AS completed_at, e.recurrence AS recurrence, "
+            "       e.x AS x, e.y AS y, e.is_exposed AS is_exposed"
         )
         records, _, _ = self.driver.execute_query(
             query,
@@ -130,12 +150,238 @@ class KnowledgeRepository:
             content=data.content,
             status=data.status,
             importance=data.importance,
+            due_date=data.due_date,
+            start_date=data.start_date,
+            completed_at=data.completed_at,
+            recurrence=data.recurrence,
+            x=data.x,
+            y=data.y,
+            is_exposed=data.is_exposed,
         )
         r = records[0]
         return EntitySummary(
             id=r["id"], name=r["name"], entity_type=r["entity_type"],
             summary=r["summary"], status=r["status"],
             importance=r["importance"], updated_at=_str_or_none(r["updated_at"]),
+            due_date=_str_or_none(r["due_date"]), start_date=_str_or_none(r["start_date"]),
+            completed_at=_str_or_none(r["completed_at"]), recurrence=r["recurrence"],
+            x=r.get("x"), y=r.get("y"), is_exposed=r.get("is_exposed", False),
+        )
+
+    # ── Generic Node Update & Create ────────────────────────────────
+    
+    def create_node(self, data: NodeGenericCreate) -> EntitySummary:
+        """Create a node with a dynamic label securely drawn from the DataSchema list."""
+        
+        # Guard against injection by enforcing pascal case labels without strange characters:
+        safe_label = "".join(c for c in data.label if c.isalnum()).capitalize()
+        if not safe_label: safe_label = "Concept"
+
+        new_id = str(uuid.uuid4())
+        
+        query = (
+            f"CREATE (n:{safe_label} {{ "
+            "    id: $id, "
+            "    name: $name, "
+            "    entity_type: $entity_type, "
+            "    summary: $summary, "
+            "    content: $content, "
+            "    status: $status, "
+            "    importance: $importance, "
+            "    created_at: datetime(), "
+            "    updated_at: datetime(), "
+            "    due_date: $due_date, "
+            "    start_date: $start_date, "
+            "    completed_at: $completed_at, "
+            "    recurrence: $recurrence, "
+            "    x: $x, "
+            "    y: $y, "
+            "    is_exposed: $is_exposed "
+            "}) "
+            "RETURN n.id AS id, coalesce(labels(n)[0], 'Concept') AS label, n.name AS name, n.entity_type AS entity_type, "
+            "       n.summary AS summary, n.status AS status, "
+            "       n.importance AS importance, n.updated_at AS updated_at, "
+            "       n.due_date AS due_date, n.start_date AS start_date, "
+            "       n.completed_at AS completed_at, n.recurrence AS recurrence, "
+            "       n.x AS x, n.y AS y, n.is_exposed AS is_exposed"
+        )
+        
+        records, _, _ = self.driver.execute_query(
+            query,
+            id=new_id,
+            name=data.name,
+            entity_type=data.node_type,
+            summary=data.summary,
+            content=data.content,
+            status=data.status,
+            importance=data.importance,
+            due_date=data.due_date,
+            start_date=data.start_date,
+            completed_at=data.completed_at,
+            recurrence=data.recurrence,
+            x=data.x,
+            y=data.y,
+            is_exposed=data.is_exposed,
+        )
+        
+        r = records[0]
+        # Notice we are slightly abusing EntitySummary to return arbitrary nodes to the frontend list_entities
+        # which expects EntitySummary for the canvas. The 'entity_type' field will contain our 'node_type'.
+        return EntitySummary(
+            id=r["id"], name=r["name"], entity_type=r["entity_type"] or "",
+            summary=r["summary"] or "", status=r["status"] or "",
+            importance=r["importance"], updated_at=_str_or_none(r["updated_at"]),
+            due_date=_str_or_none(r["due_date"]), start_date=_str_or_none(r["start_date"]),
+            completed_at=_str_or_none(r["completed_at"]), recurrence=r["recurrence"],
+            x=r.get("x"), y=r.get("y"), is_exposed=r.get("is_exposed", False),
+        )
+        
+    def update_node(self, node_id: str, data: NodeGenericUpdate) -> EntitySummary:
+        """Update any node, swapping out its label dynamically natively."""
+        
+        safe_label = "".join(c for c in data.label if c.isalnum()).capitalize() if data.label else None
+        
+        # Native Neo4j label swapping without APOC:
+        # 1. First query to get existing labels
+        records, _, _ = self.driver.execute_query("MATCH (n {id: $id}) RETURN labels(n) as labels", id=node_id)
+        if not records:
+             raise ValueError(f"Node with id {node_id} not found")
+        
+        old_labels = records[0]["labels"]
+        
+        # 2. Build string literal queries to remove old label and set new label natively
+        remove_clause = f"REMOVE n:{':'.join(old_labels)} " if old_labels else ""
+        set_clause = f"SET n:{safe_label} " if safe_label else ""
+            
+        query = (
+            "MATCH (n {id: $id}) "
+            f"{remove_clause} "
+            f"{set_clause} "
+            "WITH n AS updatedNode "
+            "SET updatedNode.name = CASE WHEN $name IS NOT NULL THEN $name ELSE updatedNode.name END, "
+            "    updatedNode.entity_type = CASE WHEN $entity_type IS NOT NULL THEN $entity_type ELSE updatedNode.entity_type END, "
+            "    updatedNode.summary = CASE WHEN $summary IS NOT NULL THEN $summary ELSE updatedNode.summary END, "
+            "    updatedNode.content = CASE WHEN $content IS NOT NULL THEN $content ELSE updatedNode.content END, "
+            "    updatedNode.status = CASE WHEN $status IS NOT NULL THEN $status ELSE updatedNode.status END, "
+            "    updatedNode.importance = CASE WHEN $importance IS NOT NULL THEN $importance ELSE updatedNode.importance END, "
+            "    updatedNode.updated_at = datetime(), "
+            "    updatedNode.due_date = CASE WHEN $due_date IS NOT NULL THEN $due_date ELSE updatedNode.due_date END, "
+            "    updatedNode.start_date = CASE WHEN $start_date IS NOT NULL THEN $start_date ELSE updatedNode.start_date END, "
+            "    updatedNode.completed_at = CASE WHEN $completed_at IS NOT NULL THEN $completed_at ELSE updatedNode.completed_at END, "
+            "    updatedNode.recurrence = CASE WHEN $recurrence IS NOT NULL THEN $recurrence ELSE updatedNode.recurrence END, "
+            "    updatedNode.x = CASE WHEN $x IS NOT NULL THEN $x ELSE updatedNode.x END, "
+            "    updatedNode.y = CASE WHEN $y IS NOT NULL THEN $y ELSE updatedNode.y END, "
+            "    updatedNode.is_exposed = CASE WHEN $is_exposed IS NOT NULL THEN $is_exposed ELSE updatedNode.is_exposed END "
+            "RETURN updatedNode.id AS id, coalesce(labels(updatedNode)[0], 'Concept') AS label, "
+            "       updatedNode.name AS name, updatedNode.entity_type AS entity_type, "
+            "       updatedNode.summary AS summary, updatedNode.status AS status, "
+            "       updatedNode.importance AS importance, updatedNode.updated_at AS updated_at, "
+            "       updatedNode.due_date AS due_date, updatedNode.start_date AS start_date, "
+            "       updatedNode.completed_at AS completed_at, updatedNode.recurrence AS recurrence, "
+            "       updatedNode.x AS x, updatedNode.y AS y, updatedNode.is_exposed AS is_exposed"
+        )
+        
+        records, _, _ = self.driver.execute_query(
+            query,
+            id=node_id,
+            name=data.name,
+            entity_type=data.node_type,
+            summary=data.summary,
+            content=data.content,
+            status=data.status,
+            importance=data.importance,
+            due_date=data.due_date,
+            start_date=data.start_date,
+            completed_at=data.completed_at,
+            recurrence=data.recurrence,
+            x=data.x,
+            y=data.y,
+            is_exposed=data.is_exposed,
+        )
+        
+        if not records:
+             raise ValueError(f"Node with id {node_id} not found")
+             
+        r = records[0]
+        return EntitySummary(
+            id=r["id"], name=r["name"], entity_type=r["entity_type"] or "",
+            summary=r["summary"] or "", status=r["status"] or "",
+            importance=r["importance"], updated_at=_str_or_none(r["updated_at"]),
+            due_date=_str_or_none(r["due_date"]), start_date=_str_or_none(r["start_date"]),
+            completed_at=_str_or_none(r["completed_at"]), recurrence=r["recurrence"],
+            x=r.get("x"), y=r.get("y"), is_exposed=r.get("is_exposed", False),
+        )
+
+    def update_entity(self, entity_id: str, data: EntityCreate) -> EntitySummary:
+        """Update an existing entity by ID."""
+        query = (
+            "MATCH (e:Entity {id: $id}) "
+            "SET e.name = $name, "
+            "    e.entity_type = $entity_type, "
+            "    e.summary = $summary, "
+            "    e.content = $content, "
+            "    e.status = $status, "
+            "    e.importance = $importance, "
+            "    e.updated_at = datetime(), "
+            "    e.due_date = $due_date, "
+            "    e.start_date = $start_date, "
+            "    e.completed_at = $completed_at, "
+            "    e.recurrence = $recurrence, "
+            "    e.x = CASE WHEN $x IS NOT NULL THEN $x ELSE e.x END, "
+            "    e.y = CASE WHEN $y IS NOT NULL THEN $y ELSE e.y END, "
+            "    e.is_exposed = CASE WHEN $is_exposed IS NOT NULL THEN $is_exposed ELSE e.is_exposed END "
+            "RETURN e.id AS id, e.name AS name, e.entity_type AS entity_type, "
+            "       e.summary AS summary, e.status AS status, "
+            "       e.importance AS importance, e.updated_at AS updated_at, "
+            "       e.due_date AS due_date, e.start_date AS start_date, "
+            "       e.completed_at AS completed_at, e.recurrence AS recurrence, "
+            "       e.x AS x, e.y AS y, e.is_exposed AS is_exposed"
+        )
+        records, _, _ = self.driver.execute_query(
+            query,
+            id=entity_id,
+            name=data.name,
+            entity_type=data.entity_type,
+            summary=data.summary,
+            content=data.content,
+            status=data.status,
+            importance=data.importance,
+            due_date=data.due_date,
+            start_date=data.start_date,
+            completed_at=data.completed_at,
+            recurrence=data.recurrence,
+            x=data.x,
+            y=data.y,
+            is_exposed=data.is_exposed,
+        )
+        if not records:
+            raise ValueError(f"Entity with id {entity_id} not found")
+        r = records[0]
+        return EntitySummary(
+            id=r["id"], name=r["name"], entity_type=r["entity_type"],
+            summary=r["summary"], status=r["status"],
+            importance=r["importance"], updated_at=_str_or_none(r["updated_at"]),
+            due_date=_str_or_none(r["due_date"]), start_date=_str_or_none(r["start_date"]),
+            completed_at=_str_or_none(r["completed_at"]), recurrence=r["recurrence"],
+            x=r.get("x"), y=r.get("y"), is_exposed=r.get("is_exposed", False),
+        )
+
+    def update_node_fields(self, node_id: str, data: NodePartialUpdate) -> None:
+        """Update just coordinates and exposure string without touching other fields for any node type."""
+        query = (
+            "MATCH (n {id: $id}) "
+            "WHERE n:Entity OR n:Note OR n:Source OR n:Tag OR n:Collection "
+            "SET n.x = CASE WHEN $x IS NOT NULL THEN $x ELSE n.x END, "
+            "    n.y = CASE WHEN $y IS NOT NULL THEN $y ELSE n.y END, "
+            "    n.is_exposed = CASE WHEN $is_exposed IS NOT NULL THEN $is_exposed ELSE n.is_exposed END "
+            "RETURN n.id"
+        )
+        self.driver.execute_query(
+            query,
+            id=node_id,
+            x=data.x,
+            y=data.y,
+            is_exposed=data.is_exposed,
         )
 
     def delete_entity(self, entity_id: str):
@@ -389,14 +635,22 @@ class KnowledgeRepository:
             weight=r["weight"], context=r["context"],
         )
 
-    def delete_relationship(self, from_id: str, to_id: str, rel_type: str):
+    def delete_relationship(self, from_id: str, to_id: str, rel_type: str) -> None:
+        """Deletes a relationship of a specific type between two nodes."""
         if rel_type not in self.ALLOWED_REL_TYPES:
             raise ValueError(f"Invalid relationship type '{rel_type}'")
+            
         query = (
             f"MATCH (a {{id: $from_id}})-[r:{rel_type}]->(b {{id: $to_id}}) "
             f"DELETE r"
         )
-        self.driver.execute_query(query, from_id=from_id, to_id=to_id)
+        self.driver.execute_query(
+            query,
+            from_id=from_id,
+            to_id=to_id,
+        )
+
+
 
     # ══════════════════════════════════════════════════════
     #  SEARCH & TRAVERSAL (Agent Protocol Rules 3 & 5)
@@ -491,10 +745,19 @@ class KnowledgeRepository:
         """Return all nodes and edges for the visual graph overlay."""
         import math
 
+        allowed_labels = [
+            "Entity", "Note", "Source", "Tag", "Collection",
+            "Concept", "Organization", "Location", "Activity", "Event",
+            "Content", "Person", "Project", "Tool", "TimeBlock"
+        ]
+        label_cond_n = " OR ".join(f"n:{l}" for l in allowed_labels)
+        label_cond_a = " OR ".join(f"a:{l}" for l in allowed_labels)
+        label_cond_b = " OR ".join(f"b:{l}" for l in allowed_labels)
+
         # ── Fetch all nodes with visual properties ────────
         node_query = (
             "MATCH (n) "
-            "WHERE n:Entity OR n:Note OR n:Source OR n:Tag OR n:Collection "
+            f"WHERE {label_cond_n} "
             "RETURN n.id AS id, "
             "       COALESCE(n.name, n.title) AS name, "
             "       n.summary AS summary, "
@@ -509,24 +772,45 @@ class KnowledgeRepository:
             "       n.completed_at AS completed_at, "
             "       n.due_date AS due_date, "
             "       n.color AS color, "
-            "       EXISTS { (n)-[:BLOCKS]->() } AS is_blocking, "
-            "       EXISTS { ()-[:BLOCKS]->(n) } AS is_blocked "
-            "ORDER BY label, name"
+            "       n.x AS x, "
+            "       n.y AS y, "
+            "       n.is_exposed AS is_exposed "
+            "ORDER BY label, name "
+            "LIMIT 300"
         )
         node_records, _, _ = self.driver.execute_query(node_query)
 
         # ── Fetch all relationships ───────────────────────
         edge_query = (
             "MATCH (a)-[r]->(b) "
-            "WHERE (a:Entity OR a:Note OR a:Source OR a:Tag OR a:Collection) "
-            "  AND (b:Entity OR b:Note OR b:Source OR b:Tag OR b:Collection) "
+            f"WHERE ({label_cond_a}) "
+            f"  AND ({label_cond_b}) "
             "RETURN a.id AS source, "
             "       b.id AS target, "
             "       type(r) AS rel_type, "
             "       r.weight AS weight, "
-            "       r.context AS context"
+            "       r.context AS context "
+            "LIMIT 1000"
         )
         edge_records, _, _ = self.driver.execute_query(edge_query)
+
+        # ── Build edge list & calc blocking status ────────
+        edges = []
+        blocking_ids = set()
+        blocked_ids = set()
+        for r in edge_records:
+            if r["rel_type"] == "BLOCKS":
+                blocking_ids.add(r["source"])
+                blocked_ids.add(r["target"])
+                
+            edges.append({
+                "id": f"e-{r['source']}-{r['target']}-{r['rel_type']}",
+                "source": r["source"],
+                "target": r["target"],
+                "rel_type": r["rel_type"],
+                "weight": r["weight"],
+                "context": r["context"],
+            })
 
         # ── Build node list with grid positions ───────────
         cols = max(int(math.sqrt(len(node_records))), 1)
@@ -547,22 +831,11 @@ class KnowledgeRepository:
                 "completed_at": _str_or_none(r["completed_at"]),
                 "due_date": _str_or_none(r["due_date"]),
                 "color": r["color"],
-                "is_blocking": r["is_blocking"],
-                "is_blocked": r["is_blocked"],
-                "position_x": (i % cols) * 280,
-                "position_y": (i // cols) * 200,
-            })
-
-        # ── Build edge list ───────────────────────────────
-        edges = []
-        for r in edge_records:
-            edges.append({
-                "id": f"e-{r['source']}-{r['target']}-{r['rel_type']}",
-                "source": r["source"],
-                "target": r["target"],
-                "rel_type": r["rel_type"],
-                "weight": r["weight"],
-                "context": r["context"],
+                "is_blocking": r["id"] in blocking_ids,
+                "is_blocked": r["id"] in blocked_ids,
+                "position_x": r.get("x") if r.get("x") is not None else (i % cols) * 280,
+                "position_y": r.get("y") if r.get("y") is not None else (i // cols) * 200,
+                "is_exposed": r.get("is_exposed", False),
             })
 
         return {"nodes": nodes, "edges": edges}

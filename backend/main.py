@@ -18,6 +18,7 @@ from neo4j_repository import Neo4jRepository
 from schemas import ExecutionRequest
 from schema import init_schema
 from knowledge_models import (
+    NodeGenericCreate, NodeGenericUpdate,
     EntityCreate, EntitySummary, EntityFull,
     NoteCreate, NoteSummary, NoteFull,
     SourceCreate, SourceOut,
@@ -25,6 +26,7 @@ from knowledge_models import (
     CollectionCreate, CollectionOut,
     RelationshipCreate, RelationshipOut,
     SearchRequest, NeighborhoodRequest,
+    NodePartialUpdate,
 )
 from knowledge_repository import KnowledgeRepository
 
@@ -49,13 +51,12 @@ async def lifespan(app: FastAPI):
     if settings.graph_db == "neo4j":
         close_neo4j_driver()
 
-
 app = FastAPI(title="Graph-Agent Workbench API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -147,6 +148,23 @@ def get_knowledge_repo() -> KnowledgeRepository:
     return KnowledgeRepository(get_neo4j_driver())
 
 
+# ── Generic Nodes ─────────────────────────────────────────────
+
+@app.post("/api/knowledge/nodes", response_model=EntitySummary)
+def create_knowledge_node(
+    data: NodeGenericCreate,
+    repo: KnowledgeRepository = Depends(get_knowledge_repo),
+):
+    return repo.create_node(data)
+
+@app.put("/api/knowledge/nodes/{node_id}", response_model=EntitySummary)
+def update_knowledge_node(
+    node_id: str,
+    data: NodeGenericUpdate,
+    repo: KnowledgeRepository = Depends(get_knowledge_repo),
+):
+    return repo.update_node(node_id, data)
+
 # ── Entities ──────────────────────────────────────────────────
 
 @app.get("/api/knowledge/entities", response_model=List[EntitySummary])
@@ -176,6 +194,28 @@ def upsert_entity(
     repo: KnowledgeRepository = Depends(get_knowledge_repo),
 ):
     return repo.upsert_entity(data)
+
+
+@app.put("/api/knowledge/entities/{entity_id}", response_model=EntitySummary)
+def update_entity(
+    entity_id: str,
+    data: EntityCreate,
+    repo: KnowledgeRepository = Depends(get_knowledge_repo),
+):
+    try:
+        return repo.update_entity(entity_id, data)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.patch("/api/knowledge/nodes/{node_id}", response_model=dict)
+def update_node_partial(
+    node_id: str,
+    data: NodePartialUpdate,
+    repo: KnowledgeRepository = Depends(get_knowledge_repo),
+):
+    repo.update_node_fields(node_id, data)
+    return {"status": "updated", "id": node_id}
 
 
 @app.delete("/api/knowledge/entities/{entity_id}")

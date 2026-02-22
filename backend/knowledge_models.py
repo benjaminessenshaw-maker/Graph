@@ -10,6 +10,29 @@ from datetime import datetime
 
 # ── Node Models ────────────────────────────────────────────
 
+class NodeGenericCreate(BaseModel):
+    """Dynamic node payload for creating generic schema-compliant nodes from the frontend."""
+    label: str = Field(description="Primary category, e.g. Event, Concept, Organization")
+    node_type: Optional[str] = Field(None, description="Subcategory, e.g. meeting, topic, company")
+    name: str = Field(..., max_length=200)
+    summary: Optional[str] = Field(None, max_length=300)
+    content: Optional[str] = None
+    status: str = "active"
+    importance: Optional[int] = Field(None, ge=1, le=5)
+    due_date: Optional[str] = None
+    start_date: Optional[str] = None
+    completed_at: Optional[str] = None
+    recurrence: Optional[str] = None
+    x: Optional[float] = None
+    y: Optional[float] = None
+    is_exposed: bool = False
+
+class NodeGenericUpdate(NodeGenericCreate):
+    """Update node payload, making all fields (except potentially ID routing) optional."""
+    label: Optional[str] = None
+    name: Optional[str] = None
+    status: Optional[str] = None
+    is_exposed: Optional[bool] = None
 
 class EntityCreate(BaseModel):
     """Create or update an Entity node."""
@@ -21,6 +44,13 @@ class EntityCreate(BaseModel):
     content: Optional[str] = None
     status: str = "active"
     importance: Optional[int] = Field(None, ge=1, le=5)
+    due_date: Optional[str] = None
+    start_date: Optional[str] = None
+    completed_at: Optional[str] = None
+    recurrence: Optional[str] = None
+    x: Optional[float] = None
+    y: Optional[float] = None
+    is_exposed: bool = False
 
 
 class EntitySummary(BaseModel):
@@ -32,6 +62,13 @@ class EntitySummary(BaseModel):
     status: str
     importance: Optional[int] = None
     updated_at: Optional[str] = None
+    due_date: Optional[str] = None
+    start_date: Optional[str] = None
+    completed_at: Optional[str] = None
+    recurrence: Optional[str] = None
+    x: Optional[float] = None
+    y: Optional[float] = None
+    is_exposed: bool = False
 
 
 class EntityFull(EntitySummary):
@@ -109,6 +146,13 @@ class CollectionOut(BaseModel):
     created_at: Optional[str] = None
 
 
+class NodePartialUpdate(BaseModel):
+    """Partial update for any node type, e.g., for coordinates and visibility."""
+    x: Optional[float] = None
+    y: Optional[float] = None
+    is_exposed: Optional[bool] = None
+
+
 # ── Relationship Models ───────────────────────────────────
 
 
@@ -119,7 +163,7 @@ class RelationshipCreate(BaseModel):
     rel_type: str = Field(
         description="Relationship type: RELATES_TO, IS_PART_OF, DEPENDS_ON, "
                     "CONTRADICTS, SUPERSEDES, SIMILAR_TO, DERIVED_FROM, "
-                    "ABOUT, AUTHORED_BY, TAGGED, CONTAINS"
+                    "ABOUT, AUTHORED_BY, TAGGED, CONTAINS, BLOCKS"
     )
     weight: Optional[float] = Field(None, ge=0.0, le=1.0)
     context: Optional[str] = Field(None, max_length=200)
